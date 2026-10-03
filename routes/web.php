@@ -5,6 +5,7 @@ use App\Http\Controllers\MatchesController;
 use App\Http\Controllers\PlayoffMatchesController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicTournamentController;
+use App\Http\Controllers\RandomizerController;
 use App\Http\Controllers\TeamsController;
 use App\Http\Controllers\TournamentController;
 use App\Http\Controllers\UserController;
@@ -15,6 +16,14 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
+
+// Randomizer
+Route::middleware('auth')->group(function () {
+    Route::get('/randomizer', [RandomizerController::class, 'index'])->name('randomizer.index');
+    Route::post('/randomizer', [RandomizerController::class, 'store'])->name('randomizer.store');
+    Route::get('/randomizer/{id}', [RandomizerController::class, 'show'])->name('randomizer.show');
+    Route::delete('/randomizer/{id}', [RandomizerController::class, 'destroy'])->name('randomizer.destroy');
+});
 
 // Tournament Registration
 Route::get('/tournament', [TournamentController::class, 'index'])->name('tournament.index')->middleware('auth')->middleware('auth');

@@ -279,6 +279,14 @@
                         </li>
 
                         <li class="nav-item">
+                            <a href="{{ route('randomizer.index') }}"
+                                class="nav-link {{ request()->routeIs('randomizer.*') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-random"></i>
+                                <p>Randomizer</p>
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
                             <a href="#" class="nav-link">
                                 <i class="fas fa-trophy nav-icon"></i>
                                 <p>

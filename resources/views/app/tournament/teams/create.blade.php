@@ -42,7 +42,7 @@
                 <div class="col-md-12">
                     <div class="card">
                         <div class="card-header">
-                            <h3 class="card-title">Create Teams</h3>
+                            <h3 class="card-title">Bulk Add Teams</h3>
                         </div>
                         <!-- /.card-header -->
                         <div class="col-xl-12 mt-4 p-3">
@@ -53,42 +53,17 @@
                                     <input type="text" class="form-control" id="tournament_id" name="tournament_id"
                                         value="{{ $tournament->id }}" hidden>
 
-                                    <div class="col-md-3">
-                                        <div class="form-floating mb-3">
-                                            <label for="team_no">Team Number <span class="text-danger">*</span></label>
-                                            <select class="form-control" id="team_no" name="team_no"
-                                                aria-label="Team Number" required>
-
-                                                <option value="" selected disabled>
-                                                    Select Team Number...
-                                                </option>
-
-                                            </select>
-                                            <script>
-                                                const teamNoSelect = document.getElementById('team_no');
-
-                                                for (let i = 1; i <= 1000; i++) {
-                                                    const option = document.createElement('option');
-
-                                                    option.value = `${String(i).padStart(2, '0')}`;
-                                                    option.textContent = `${String(i).padStart(2, '0')}`;
-
-                                                    teamNoSelect.appendChild(option);
-                                                }
-                                            </script>
+                                    <div class="col-12">
+                                        <div class="form-group mb-3">
+                                            <label for="names">Team Names <span class="text-danger">*</span></label>
+                                            <textarea class="form-control @error('names') is-invalid @enderror" id="names"
+                                                name="names" rows="10" placeholder="One team per line&#10;Team Alpha&#10;Team Bravo&#10;Team Charlie" required>{{ old('names') }}</textarea>
+                                            <small class="form-text text-muted">Paste one team name per line. Team numbers will be assigned automatically in the order entered.</small>
+                                            @error('names')
+                                                <div class="invalid-feedback">{{ $message }}</div>
+                                            @enderror
                                         </div>
-                                        <x-form-error name='team_no' />
                                     </div>
-
-                                    <x-form-input-list t-list style="" divClass="col-md-9" type="text"
-                                        oninput="" inputLabel="Team Name" forLabel="team_name"
-                                        placeHolder="Team Name" id="team_name" readonly=""
-                                        value="{{ old('team_name') }}" name="team_name" list='tournamentOptions'>
-                                        @foreach ($allTeams as $team)
-                                            <option value="{{ $team->team_name }}">
-                                                {{ $team->team_name }}</option>
-                                        @endforeach
-                                    </x-form-input-list>
 
                                     <div class="col-md-6">
                                         <div class="form-floating mb-3">
@@ -157,35 +132,10 @@
                                         </div>
                                         <x-form-error name="team_category" />
                                     </div>
-                                    {{--
-                                    <div class="col-md-6">
-                                        <div class="form-floating mb-3">
-                                            <label for="date">Tournament Date <span
-                                                    class="text-danger">*</span></label>
-                                            <input type="date" class="form-control" id="date"
-                                                placeholder="Tournament Date" name="date"
-                                                value="{{ old('date') }}">
-                                        </div>
-                                        <x-form-error name='date' />
-                                    </div>
-
-
-                                    <x-form-input-list style="" divClass="col-md-6" type="text" oninput=""
-                                        inputLabel="Venue" forLabel="venue" placeHolder="Venue" id="venue"
-                                        readonly="" value="{{ old('venue') }}" name="venue"
-                                        list='tournamentOptions'>
-                                        @foreach ($allTournaments as $tournament)
-                                            <option value="{{ $tournament->venue }}">
-                                                {{ $tournament->venue }}</option>
-                                        @endforeach
-                                    </x-form-input-list>
-
- --}}
-
                                 </div>
                                 <div class="d-flex flex-wrap gap-3">
                                     <x-form-button btnType="submit" btnAddClass="btn-primary" fdprocessedid="swuiv"
-                                        btnLabel="Create" />
+                                        btnLabel="Generate Teams" />
                                 </div>
                             </form>
                         </div>

@@ -38,6 +38,7 @@ Route::delete('/tournament/{id}', [TournamentController::class, 'destroy'])->nam
 // Teams Registration
 Route::get('/teams/create/{tournament_id}', [TeamsController::class, 'create'])->name('teams.create')->middleware('auth');
 Route::post('/teams/store', [TeamsController::class, 'store'])->name('teams.store')->middleware('auth');
+Route::delete('/teams/bulk-delete', [TeamsController::class, 'bulkDestroy'])->name('teams.bulkDestroy')->middleware('auth');
 Route::get('/teams/{id}', [TeamsController::class, 'edit'])->name('teams.edit')->middleware('auth');
 Route::put('/teams/{id}', [TeamsController::class, 'update'])->name('teams.update')->middleware('auth');
 Route::delete('/teams/{id}', [TeamsController::class, 'destroy'])->name('teams.destroy')->middleware('auth');

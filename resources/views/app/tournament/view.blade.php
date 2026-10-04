@@ -198,12 +198,38 @@
 
                                                     </div>
 
-                                                    <div class="card-body">
-                                                        <div class="table-responsive">
-                                                            <table class="table table-bordered table-hover">
-                                                                <thead>
-                                                                    <tr>
-                                                                        <th width="60">
+                                                <div class="card-body">
+                                                    @php
+                                                        $bulkDeleteFormId = 'bulk-delete-teams-' . \Illuminate\Support\Str::slug($bracket . '-' . $category);
+                                                    @endphp
+
+                                                    <form id="{{ $bulkDeleteFormId }}"
+                                                        action="{{ route('teams.bulkDestroy') }}" method="POST"
+                                                        onsubmit="return confirm('Are you sure you want to delete the selected team(s)? This action cannot be undone.');">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <input type="hidden" name="tournament_id"
+                                                            value="{{ Crypt::encryptString($tournamentView->id) }}">
+                                                        <input type="hidden" name="team_bracket" value="{{ $bracket }}">
+                                                        <input type="hidden" name="team_category" value="{{ $category }}">
+                                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                                            <span class="text-muted">Select teams to perform bulk actions.</span>
+                                                            <button type="submit" class="btn btn-sm btn-danger bulk-delete-teams-button" disabled>
+                                                                <i class="fas fa-trash"></i> Delete Selected
+                                                                <span class="bulk-delete-teams-count"></span>
+                                                            </button>
+                                                        </div>
+                                                    </form>
+
+                                                    <div class="table-responsive">
+                                                        <table class="table table-bordered table-hover">
+                                                            <thead>
+                                                                <tr>
+                                                                    <th width="50" class="text-center">
+                                                                        <input type="checkbox" class="form-check-input select-all-teams"
+                                                                            form="{{ $bulkDeleteFormId }}">
+                                                                    </th>
+                                                                    <th width="60">
                                                                             #
                                                                         </th>
                                                                         <th>
@@ -218,8 +244,14 @@
                                                                     </tr>
                                                                 </thead>
                                                                 <tbody>
-                                                                    @forelse ($teams as $team)
+                                                                @forelse ($teams as $team)
                                                                         <tr>
+                                                                            <td class="text-center">
+                                                                                <input type="checkbox" name="team_ids[]"
+                                                                                    value="{{ Crypt::encryptString($team->id) }}"
+                                                                                    class="form-check-input team-checkbox"
+                                                                                    form="{{ $bulkDeleteFormId }}">
+                                                                            </td>
                                                                             <td>
                                                                                 {{ $loop->iteration }}
                                                                             </td>
@@ -252,7 +284,7 @@
                                                                         </tr>
                                                                     @empty
                                                                         <tr>
-                                                                            <td colspan="4" class="text-center">
+                                                                            <td colspan="5" class="text-center">
                                                                                 No teams registered.
                                                                             </td>
                                                                         </tr>
@@ -303,3 +335,38 @@
         </div>
     </div>
 </x-main-layout>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.card-body').forEach(function (cardBody) {
+            const selectAll = cardBody.querySelector('.select-all-teams');
+            const checkboxes = cardBody.querySelectorAll('.team-checkbox');
+            const deleteButton = cardBody.querySelector('.bulk-delete-teams-button');
+            const selectedCount = cardBody.querySelector('.bulk-delete-teams-count');
+
+            if (!selectAll || !deleteButton) {
+                return;
+            }
+
+            const updateBulkDeleteState = function () {
+                const selected = cardBody.querySelectorAll('.team-checkbox:checked').length;
+
+                deleteButton.disabled = selected === 0;
+                selectedCount.textContent = selected > 0 ? '(' + selected + ')' : '';
+                selectAll.checked = checkboxes.length > 0 && selected === checkboxes.length;
+                selectAll.indeterminate = selected > 0 && selected < checkboxes.length;
+            };
+
+            selectAll.addEventListener('change', function () {
+                checkboxes.forEach(function (checkbox) {
+                    checkbox.checked = selectAll.checked;
+                });
+                updateBulkDeleteState();
+            });
+
+            checkboxes.forEach(function (checkbox) {
+                checkbox.addEventListener('change', updateBulkDeleteState);
+            });
+        });
+    });
+</script>

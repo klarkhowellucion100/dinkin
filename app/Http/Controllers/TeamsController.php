@@ -29,12 +29,9 @@ class TeamsController extends Controller
      */
     public function create($tournament_id)
     {
-        $allTeams = Teams::all();
         $tournament = Tournament::findOrFail($tournament_id);
 
-        return view('app.tournament.teams.create',
-            ['tournament' => $tournament,
-                'allTeams' => $allTeams]);
+        return view('app.tournament.teams.create', compact('tournament'));
     }
 
     /**
@@ -43,18 +40,68 @@ class TeamsController extends Controller
     public function store(Request $request)
     {
         $teamData = $request->validate([
-            'tournament_id' => 'required',
-            'team_no' => 'required',
-            'team_name' => 'required',
-            'team_bracket' => 'required',
-            'team_category' => 'required',
+            'tournament_id' => ['required', 'integer', 'exists:tournaments,id'],
+            'names' => ['required', 'string'],
+            'team_bracket' => ['required', 'string', 'max:255'],
+            'team_category' => ['required', 'string', 'max:255'],
         ]);
 
-        $teamData['user_id'] = Auth::id();
-        $teamData['code'] = Str::random(10);
+        $names = collect(preg_split('/\r\n|\r|\n/', $teamData['names']))
+            ->map(fn (string $name): string => trim($name))
+            ->filter()
+            ->values();
 
-        DB::transaction(function () use ($teamData): void {
-            Teams::create($teamData);
+        if ($names->isEmpty()) {
+            return back()
+                ->withErrors(['names' => 'Add at least one team name.'])
+                ->withInput();
+        }
+
+        if ($names->count() !== $names->unique()->count()) {
+            return back()
+                ->withErrors(['names' => 'Each team name must be unique.'])
+                ->withInput();
+        }
+
+        $existingNames = Teams::query()
+            ->where('tournament_id', $teamData['tournament_id'])
+            ->whereIn('team_name', $names)
+            ->pluck('team_name');
+
+        if ($existingNames->isNotEmpty()) {
+            return back()
+                ->withErrors([
+                    'names' => 'These teams already exist in this tournament: '.$existingNames->implode(', ').'.',
+                ])
+                ->withInput();
+        }
+
+        DB::transaction(function () use ($teamData, $names): void {
+            $nextTeamNumber = 1;
+
+            foreach ($names as $name) {
+                while (Teams::query()
+                    ->where('tournament_id', $teamData['tournament_id'])
+                    ->where('team_bracket', $teamData['team_bracket'])
+                    ->where('team_category', $teamData['team_category'])
+                    ->where('team_no', str_pad((string) $nextTeamNumber, 2, '0', STR_PAD_LEFT))
+                    ->exists()) {
+                    $nextTeamNumber++;
+                }
+
+                Teams::create([
+                    'tournament_id' => $teamData['tournament_id'],
+                    'team_no' => str_pad((string) $nextTeamNumber, 2, '0', STR_PAD_LEFT),
+                    'team_name' => $name,
+                    'team_bracket' => $teamData['team_bracket'],
+                    'team_category' => $teamData['team_category'],
+                    'user_id' => Auth::id(),
+                    'code' => Str::random(10),
+                ]);
+
+                $nextTeamNumber++;
+            }
+
             $this->matchSchedule->sync(
                 (int) $teamData['tournament_id'],
                 $teamData['team_bracket'],
@@ -66,7 +113,7 @@ class TeamsController extends Controller
         return redirect()->route(
             'tournament.view',
             Crypt::encryptString($teamData['tournament_id'])
-        )->with('success', 'Team created successfully.');
+        )->with('success', $names->count().' teams created successfully.');
     }
 
     /**
@@ -182,5 +229,60 @@ class TeamsController extends Controller
             'success',
             'Team deleted successfully.'
         );
+    }
+
+    public function bulkDestroy(Request $request)
+    {
+        $validated = $request->validate([
+            'team_ids' => ['required', 'array', 'min:1'],
+            'team_ids.*' => ['required', 'string'],
+            'tournament_id' => ['required', 'string'],
+            'team_bracket' => ['required', 'string'],
+            'team_category' => ['required', 'string'],
+        ]);
+
+        try {
+            $tournamentId = (int) Crypt::decryptString($validated['tournament_id']);
+        } catch (DecryptException $e) {
+            abort(404);
+        }
+
+        $teamIds = collect($validated['team_ids'])
+            ->map(function (string $encryptedId): ?int {
+                try {
+                    return (int) Crypt::decryptString($encryptedId);
+                } catch (DecryptException $e) {
+                    return null;
+                }
+            })
+            ->filter()
+            ->values();
+
+        if ($teamIds->isEmpty()) {
+            return back()->with('error', 'No valid teams were selected.');
+        }
+
+        $deletedCount = 0;
+
+        DB::transaction(function () use ($teamIds, $tournamentId, $validated, &$deletedCount): void {
+            $deletedCount = Teams::query()
+                ->where('tournament_id', $tournamentId)
+                ->where('team_bracket', $validated['team_bracket'])
+                ->where('team_category', $validated['team_category'])
+                ->whereIn('id', $teamIds)
+                ->delete();
+
+            $this->matchSchedule->sync(
+                $tournamentId,
+                $validated['team_bracket'],
+                $validated['team_category'],
+                (int) Auth::id()
+            );
+        });
+
+        return redirect()->route(
+            'tournament.view',
+            Crypt::encryptString($tournamentId)
+        )->with('success', "{$deletedCount} team(s) successfully deleted.");
     }
 }

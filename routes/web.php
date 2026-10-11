@@ -31,6 +31,8 @@ Route::match(['get', 'post'], '/tournament/search', [TournamentController::class
 Route::get('/tournament/create', [TournamentController::class, 'create'])->name('tournament.create')->middleware('auth');
 Route::post('/tournament/store', [TournamentController::class, 'store'])->name('tournament.store')->middleware('auth');
 Route::get('/tournament/view/{id}', [TournamentController::class, 'view'])->name('tournament.view')->middleware('auth');
+Route::get('/tournament/view/{id}/court-schedule', [TournamentController::class, 'courtSchedule'])->name('tournament.courtSchedule')->middleware('auth');
+Route::put('/tournament/{id}/court-schedule', [TournamentController::class, 'updateCourtCount'])->name('tournament.courtSchedule.update')->middleware('auth');
 Route::get('/tournament/{id}', [TournamentController::class, 'edit'])->name('tournament.edit')->middleware('auth');
 Route::put('/tournament/{id}', [TournamentController::class, 'update'])->name('tournament.update')->middleware('auth');
 Route::delete('/tournament/{id}', [TournamentController::class, 'destroy'])->name('tournament.destroy')->middleware('auth');
@@ -55,6 +57,16 @@ Route::get(
     '/tournament/{tournament_id}/matches/{team_bracket}/{team_category}',
     [MatchesController::class, 'view']
 )->name('tournament.matches.view')->middleware('auth');
+
+Route::get(
+    '/tournament/{tournament_id}/matches/{team_bracket}/{team_category}/export',
+    [MatchesController::class, 'export']
+)->name('tournament.matches.export')->middleware('auth');
+
+Route::get(
+    '/tournament/{tournament_id}/matches/{team_bracket}/{team_category}/score-sheets',
+    [MatchesController::class, 'scoreSheets']
+)->name('tournament.matches.scoreSheets')->middleware('auth');
 
 Route::put(
     '/tournament/match/{id}/score',
@@ -95,6 +107,12 @@ Route::get(
     [PublicTournamentController::class, 'data']
 )
     ->name('public.tournaments.data');
+
+Route::get(
+    '/tournaments/schedule',
+    [PublicTournamentController::class, 'schedule']
+)
+    ->name('public.tournaments.schedule');
 
 // Playoff Matches
 Route::get(

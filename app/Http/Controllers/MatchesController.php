@@ -6,9 +6,12 @@ use App\Models\Matches;
 use App\Models\Teams;
 use App\Services\RoundRobinMatchService;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class MatchesController extends Controller
 {
@@ -169,6 +172,8 @@ class MatchesController extends Controller
 
                 'matches.round_no',
                 'matches.match_no',
+                'matches.schedule_no',
+                'matches.court_no',
 
                 'matches.team1_id',
                 'team1.team_no as team1_no',
@@ -182,6 +187,7 @@ class MatchesController extends Controller
                 'matches.team2_score',
 
                 'matches.winner_id',
+                'matches.is_finalized',
                 'winner.team_no as winner_no',
                 'winner.team_name as winner_name',
 
@@ -209,6 +215,98 @@ class MatchesController extends Controller
             ]
 
         );
+    }
+
+    public function export(string $tournament_id, string $team_bracket, string $team_category): Response
+    {
+        try {
+            $tournamentId = Crypt::decryptString($tournament_id);
+        } catch (\Exception $e) {
+            abort(404);
+        }
+
+        $tournament = DB::table('tournaments')
+            ->where('id', $tournamentId)
+            ->first();
+
+        if (! $tournament) {
+            abort(404);
+        }
+
+        $matches = $this->getMatchRows($tournamentId, $team_bracket, $team_category);
+
+        $filename = collect([$tournament->name, $team_category, $team_bracket])
+            ->map(fn (string $value): string => Str::of($value)
+                ->ascii()
+                ->replaceMatches('/[^A-Za-z0-9]+/', '_')
+                ->trim('_')
+                ->value() ?: 'export')
+            ->implode('_').'.xls';
+
+        return response()
+            ->view('app.tournament.matches.export', [
+                'tournament' => $tournament,
+                'matches' => $matches,
+                'team_bracket' => $team_bracket,
+                'team_category' => $team_category,
+            ])
+            ->header('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
+            ->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
+    }
+
+    public function scoreSheets(string $tournament_id, string $team_bracket, string $team_category): Response
+    {
+        try {
+            $tournamentId = Crypt::decryptString($tournament_id);
+        } catch (\Exception $e) {
+            abort(404);
+        }
+
+        $tournament = DB::table('tournaments')
+            ->where('id', $tournamentId)
+            ->first();
+
+        if (! $tournament) {
+            abort(404);
+        }
+
+        $matches = $this->getMatchRows($tournamentId, $team_bracket, $team_category);
+
+        return response()->view('app.tournament.matches.score-sheets', [
+            'tournament' => $tournament,
+            'matches' => $matches,
+            'team_bracket' => $team_bracket,
+            'team_category' => $team_category,
+        ]);
+    }
+
+    private function getMatchRows(int|string $tournamentId, string $teamBracket, string $teamCategory): Collection
+    {
+        return DB::table('matches')
+            ->join('teams as team1', 'matches.team1_id', '=', 'team1.id')
+            ->join('teams as team2', 'matches.team2_id', '=', 'team2.id')
+            ->leftJoin('teams as winner', 'matches.winner_id', '=', 'winner.id')
+            ->where('matches.tournament_id', $tournamentId)
+            ->where('matches.team_bracket', $teamBracket)
+            ->where('matches.team_category', $teamCategory)
+            ->select([
+                'matches.id',
+                'matches.round_no',
+                'matches.match_no',
+                'matches.schedule_no',
+                'matches.court_no',
+                'team1.team_no as team1_no',
+                'team1.team_name as team1_name',
+                'team2.team_no as team2_no',
+                'team2.team_name as team2_name',
+                'matches.team1_score',
+                'matches.team2_score',
+                'winner.team_no as winner_no',
+                'winner.team_name as winner_name',
+            ])
+            ->orderBy('matches.round_no')
+            ->orderBy('matches.match_no')
+            ->get();
     }
 
     public function updateScore(
@@ -314,6 +412,8 @@ class MatchesController extends Controller
             'team2_score' => $validated['team2_score'],
 
             'winner_id' => $winnerId,
+
+            'is_finalized' => $isFinal,
 
         ]);
 

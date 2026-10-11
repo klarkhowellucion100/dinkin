@@ -25,6 +25,12 @@
                         class="btn btn-block btn-success mb-3">Add
                         Team +</a>
                 </div>
+                <div class="col-6 w-25">
+                    <a href="{{ route('tournament.courtSchedule', Crypt::encryptString($tournamentView->id)) }}"
+                        class="btn btn-block btn-primary mb-3">
+                        <i class="fas fa-stopwatch"></i> Court Schedule
+                    </a>
+                </div>
 
             </div>
 
@@ -64,7 +70,6 @@
                 </div>
 
             </div>
-
 
             {{-- <x-search-input formAction="{{ route('tournament.search') }}" /> --}}
             <!--end::Row-->
@@ -335,6 +340,24 @@
         </div>
     </div>
 </x-main-layout>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const courtCount = document.getElementById('court_count');
+        const hint = document.getElementById('courtScheduleHint');
+
+        if (!courtCount || !hint) {
+            return;
+        }
+
+        courtCount.addEventListener('input', function () {
+            const count = Number.parseInt(courtCount.value, 10);
+            hint.textContent = Number.isInteger(count) && count > 0
+                ? `The next generation will distribute matches across ${count} court${count === 1 ? '' : 's'}.`
+                : 'Enter the number of available courts to generate the schedule.';
+        });
+    });
+</script>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {

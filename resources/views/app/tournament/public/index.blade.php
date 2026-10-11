@@ -411,6 +411,77 @@
             margin-top: 2px;
         }
 
+        .results-tabs {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .results-tab {
+            border: 0;
+            border-bottom: 3px solid transparent;
+            background: transparent;
+            color: var(--muted);
+            font-weight: 700;
+            padding: 12px 18px;
+        }
+
+        .results-tab.active {
+            border-bottom-color: var(--accent);
+            color: var(--text);
+        }
+
+        .results-panel {
+            display: none;
+        }
+
+        .results-panel.active {
+            display: block;
+        }
+
+        .court-schedule-table {
+            min-width: 720px;
+        }
+
+        .court-schedule-table th {
+            background: var(--primary);
+            color: #fff;
+            font-size: 12px;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        .court-schedule-table td {
+            min-width: 180px;
+            padding: 12px;
+            vertical-align: top;
+            border-color: var(--border);
+        }
+
+        .court-schedule-number {
+            width: 90px;
+            min-width: 90px !important;
+            background: #f8fafc;
+            color: var(--muted);
+            font-weight: 800;
+            text-align: center;
+        }
+
+        .court-match-team {
+            font-weight: 800;
+        }
+
+        .court-match-meta {
+            color: var(--muted);
+            font-size: 11px;
+            line-height: 1.5;
+            margin-top: 6px;
+        }
+
+        .court-empty {
+            color: #cbd5e1;
+            text-align: center;
+        }
+
         .win-count {
             color: var(--success);
             font-weight: 800;
@@ -879,6 +950,18 @@
             </div>
 
 
+            <div id="resultsTabs" class="results-tabs">
+                <div class="border-bottom mb-3">
+                    <button type="button" class="results-tab active" data-results-tab="standingsPanel">
+                        <i class="fas fa-ranking-star mr-1"></i> Tournament Standings
+                    </button>
+                    <button type="button" class="results-tab" data-results-tab="courtSchedulePanel">
+                        <i class="fas fa-table-cells mr-1"></i> Court Schedule
+                    </button>
+                </div>
+
+                <div id="standingsPanel" class="results-panel active">
+
             {{-- =================================================
                PODIUM
             ================================================== --}}
@@ -1148,6 +1231,24 @@
             </div>
 
 
+                </div>
+
+                <div id="courtSchedulePanel" class="results-panel">
+                    <div class="dashboard-section">
+                        <div class="section-header">
+                            <h3 class="section-title">
+                                <span class="section-icon"><i class="fas fa-table-cells"></i></span>
+                                Court Schedule
+                            </h3>
+                            <small id="courtScheduleSummary" class="text-muted"></small>
+                        </div>
+                        <div class="section-body">
+                            <div id="courtScheduleContainer" class="table-responsive"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="dashboard-footer">
 
                 Tournament Results Dashboard by <a href="https://www.facebook.com/klarkhowellucion111821"
@@ -1188,6 +1289,17 @@
                 let activeDataKey = null;
                 let dataRequestSequence = 0;
 
+                document.querySelectorAll('[data-results-tab]').forEach(function (tab) {
+                    tab.addEventListener('click', function () {
+                        document.querySelectorAll('[data-results-tab]').forEach(function (button) {
+                            button.classList.toggle('active', button === tab);
+                        });
+                        document.querySelectorAll('.results-panel').forEach(function (panel) {
+                            panel.classList.toggle('active', panel.id === tab.dataset.resultsTab);
+                        });
+                    });
+                });
+
 
                 /*
                 |--------------------------------------------------------------------------
@@ -1217,6 +1329,7 @@
                         }
 
                         loadFilters(tournamentId);
+                        loadCourtSchedule(tournamentId);
 
                     }
                 );
@@ -1602,6 +1715,11 @@
                             data.podium || {}
                         );
 
+                        displayCourtSchedule(
+                            data.court_schedule || [],
+                            data.tournament.court_count
+                        );
+
                         liveUpdateStatus.textContent =
                             `Live · Updated ${new Date().toLocaleTimeString()}`;
 
@@ -1634,6 +1752,92 @@
 
                 }
 
+
+                async function loadCourtSchedule(tournamentId) {
+                    try {
+                        const response = await fetch(
+                            `{{ route('public.tournaments.schedule') }}?tournament_id=${encodeURIComponent(tournamentId)}`,
+                            {
+                                cache: 'no-store',
+                                headers: { 'Accept': 'application/json' }
+                            }
+                        );
+
+                        if (!response.ok || tournamentSelect.value !== tournamentId) {
+                            return;
+                        }
+
+                        const data = await response.json();
+                        displayCourtSchedule(data.court_schedule || [], data.court_count);
+                    } catch (error) {
+                        console.error('Unable to load court schedule:', error);
+                    }
+                }
+
+                function displayCourtSchedule(schedule, courtCount) {
+                    const tabs = document.getElementById('resultsTabs');
+                    const container = document.getElementById('courtScheduleContainer');
+                    const summary = document.getElementById('courtScheduleSummary');
+
+                    if (!tournamentSelect.value) {
+                        tabs.style.display = 'none';
+                        return;
+                    }
+
+                    tabs.style.display = 'block';
+
+                    if (!schedule.length || !courtCount) {
+                        summary.textContent = '';
+                        container.innerHTML = '<div class="alert alert-light mb-0">No court schedule has been generated for this tournament yet.</div>';
+                        return;
+                    }
+
+                    const courts = Number.parseInt(courtCount, 10);
+                    const scheduleNumbers = [...new Set(schedule.map(function (match) {
+                        return Number(match.schedule_no);
+                    }))].sort(function (a, b) { return a - b; });
+
+                    summary.textContent = courts + ' court' + (courts === 1 ? '' : 's') + ' · ' + schedule.length + ' matches';
+
+                    let html = '<table class="table table-bordered court-schedule-table mb-0"><thead><tr>';
+                    html += '<th class="court-schedule-number">No.</th>';
+                    for (let court = 1; court <= courts; court++) {
+                        html += '<th>Court ' + court + '</th>';
+                    }
+                    html += '</tr></thead><tbody>';
+
+                    scheduleNumbers.forEach(function (scheduleNumber) {
+                        html += '<tr><td class="court-schedule-number">' + scheduleNumber + '</td>';
+
+                        for (let court = 1; court <= courts; court++) {
+                            const match = schedule.find(function (item) {
+                                return Number(item.schedule_no) === scheduleNumber && Number(item.court_no) === court;
+                            });
+
+                            if (!match) {
+                                html += '<td class="court-empty">—</td>';
+                                continue;
+                            }
+
+                            html += '<td>' +
+                                '<div class="court-match-team">' + match.team1_no + ' ' + match.team1_name + '</div>' +
+                                '<div class="text-muted text-center">vs</div>' +
+                                '<div class="court-match-team">' + match.team2_no + ' ' + match.team2_name + '</div>' +
+                                '<div class="court-match-meta">' +
+                                    match.team_category + ' · Bracket ' + match.team_bracket + '<br>' +
+                                    'Round ' + match.round_no + ' · Match ' + match.match_no + '<br>' +
+                                    '<span class="badge ' + (match.is_finalized ? 'badge-success' : 'badge-warning text-dark') + '">' +
+                                        (match.is_finalized ? 'Done' : 'Pending') +
+                                    '</span>' +
+                                '</div>' +
+                            '</td>';
+                        }
+
+                        html += '</tr>';
+                    });
+
+                    container.innerHTML = html + '</tbody></table>';
+                }
 
                 /*
                 |--------------------------------------------------------------------------
@@ -2249,6 +2453,10 @@
 
                     document.getElementById(
                         'podiumSection'
+                    ).style.display = 'none';
+
+                    document.getElementById(
+                        'resultsTabs'
                     ).style.display = 'none';
 
                     if (hideLoading) {

@@ -10,6 +10,8 @@ use Illuminate\Support\Str;
 
 class RoundRobinMatchService
 {
+    public function __construct(private readonly CourtScheduleService $courtSchedule) {}
+
     public function sync(int $tournamentId, string $bracket, string $category, int $userId): void
     {
         DB::transaction(function () use ($tournamentId, $bracket, $category, $userId): void {
@@ -80,6 +82,9 @@ class RoundRobinMatchService
                 ]);
             }
         });
+
+        $courtCount = DB::table('tournaments')->where('id', $tournamentId)->value('court_count');
+        $this->courtSchedule->assign($tournamentId, $courtCount === null ? null : (int) $courtCount);
     }
 
     /**

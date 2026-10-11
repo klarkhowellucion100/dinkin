@@ -44,8 +44,11 @@ class PublicTournamentController extends Controller
             ->where('tournament_id', $tournamentId)
             ->select('team_category')
             ->distinct()
-            ->orderBy('team_category')
             ->pluck('team_category');
+
+        $categories = $categories
+            ->sortByDesc(fn (string $category): int => $this->categoryPriority($category))
+            ->values();
 
         $brackets = DB::table('teams')
             ->where('tournament_id', $tournamentId)
@@ -601,10 +604,74 @@ class PublicTournamentController extends Controller
             'tournament' => $tournament,
             'standings' => $standings,
             'matches' => $matchData,
+            'court_schedule' => $this->courtSchedule($tournamentId),
             'playoffs' => $playoffMatches
                 ->reject(fn ($playoffMatch) => $playoffMatch->match_type === '3RD' && $playoffMatch->team2_id === null)
                 ->values(),
             'podium' => $podium,
         ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    public function schedule(Request $request)
+    {
+        $validated = $request->validate([
+            'tournament_id' => ['required', 'integer'],
+        ]);
+
+        $tournamentId = (int) $validated['tournament_id'];
+
+        if (! DB::table('tournaments')->where('id', $tournamentId)->exists()) {
+            return response()->json(['message' => 'Tournament not found.'], 404);
+        }
+
+        return response()->json([
+            'court_count' => DB::table('tournaments')->where('id', $tournamentId)->value('court_count'),
+            'court_schedule' => $this->courtSchedule($tournamentId),
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    private function courtSchedule(int $tournamentId)
+    {
+        return DB::table('matches')
+            ->join('teams as team1', 'matches.team1_id', '=', 'team1.id')
+            ->join('teams as team2', 'matches.team2_id', '=', 'team2.id')
+            ->where('matches.tournament_id', $tournamentId)
+            ->whereNotNull('matches.schedule_no')
+            ->select([
+                'matches.schedule_no',
+                'matches.court_no',
+                'matches.team_category',
+                'matches.team_bracket',
+                'matches.round_no',
+                'matches.match_no',
+                'matches.is_finalized',
+                'team1.team_no as team1_no',
+                'team1.team_name as team1_name',
+                'team2.team_no as team2_no',
+                'team2.team_name as team2_name',
+            ])
+            ->orderBy('matches.schedule_no')
+            ->orderBy('matches.court_no')
+            ->get()
+            ->map(function (object $match): object {
+                $match->is_finalized = (bool) $match->is_finalized;
+
+                return $match;
+            });
+    }
+
+    private function categoryPriority(string $category): int
+    {
+        $normalized = strtolower($category);
+
+        if ($normalized === 'open') {
+            return 100;
+        }
+
+        $level = str_contains($normalized, 'intermediate') ? 3
+            : (str_contains($normalized, 'novice') ? 2 : (str_contains($normalized, 'beginner') ? 1 : 0));
+        $tier = str_contains($normalized, 'high') ? 2 : (str_contains($normalized, 'low') ? 1 : 0);
+
+        return ($level * 10) + $tier;
     }
 }

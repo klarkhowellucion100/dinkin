@@ -156,6 +156,24 @@
 
                         <div>
 
+                            <a href="{{ route('tournament.matches.export', [
+                                'tournament_id' => Crypt::encryptString($tournament->id),
+                                'team_bracket' => $team_bracket,
+                                'team_category' => $team_category,
+                            ]) }}" class="btn btn-sm btn-success">
+                                <i class="fas fa-file-excel"></i>
+                                Export Excel
+                            </a>
+
+                            <a href="{{ route('tournament.matches.scoreSheets', [
+                                'tournament_id' => Crypt::encryptString($tournament->id),
+                                'team_bracket' => $team_bracket,
+                                'team_category' => $team_category,
+                            ]) }}" target="_blank" class="btn btn-sm btn-danger">
+                                <i class="fas fa-file-pdf"></i>
+                                Score Sheets PDF
+                            </a>
+
                             <a href="{{ route('tournament.playoffs.index', [
                                 'tournament_id' => Crypt::encryptString($tournament->id),
                                 'team_category' => $team_category,
@@ -283,6 +301,10 @@
                                                 Match
                                             </th>
 
+                                            <th width="120">
+                                                Court Schedule
+                                            </th>
+
 
                                             {{-- Team 1 --}}
                                             <th>
@@ -349,6 +371,15 @@
 
                                                     </strong>
 
+                                                </td>
+
+                                                <td>
+                                                    @if ($match->court_no)
+                                                        <strong>Court {{ $match->court_no }}</strong><br>
+                                                        <small class="text-muted">No. {{ $match->schedule_no }}</small>
+                                                    @else
+                                                        <span class="text-muted">Not assigned</span>
+                                                    @endif
                                                 </td>
 
 

@@ -9,4 +9,11 @@ class Tournament extends Model
     protected $table = 'tournaments';
 
     protected $guarded = [];
+
+    protected function casts(): array
+    {
+        return [
+            'court_count' => 'integer',
+        ];
+    }
 }

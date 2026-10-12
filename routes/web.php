@@ -68,6 +68,16 @@ Route::get(
     [MatchesController::class, 'scoreSheets']
 )->name('tournament.matches.scoreSheets')->middleware('auth');
 
+Route::get(
+    '/tournament/{tournament_id}/court-schedule/court/{court_no}/score-sheets',
+    [MatchesController::class, 'courtScoreSheets']
+)->name('tournament.courtSchedule.scoreSheets')->middleware('auth');
+
+Route::get(
+    '/score-sheets',
+    [MatchesController::class, 'blankScoreSheets']
+)->name('scoreSheets.blank')->middleware('auth');
+
 Route::put(
     '/tournament/match/{id}/score',
     [MatchesController::class, 'updateScore']

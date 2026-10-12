@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Matches;
+use App\Models\PlayoffMatches;
 use App\Models\Teams;
 use App\Models\Tournament;
 use App\Models\User;
@@ -122,8 +123,78 @@ it('renders the court schedule on its own tournament page', function () {
         ->assertOk()
         ->assertSee('Court Schedule')
         ->assertSee('Generate Court Schedule')
+        ->assertSee('Standings Summary')
+        ->assertDontSee('Generate Playoffs')
+        ->assertSee('Bracket A')
+        ->assertSee('Print score sheets:')
+        ->assertSee('Court 1')
+        ->assertSee('Score Match 1')
         ->assertSee('Team Alpha')
         ->assertSee('Pending');
+
+    $this->actingAs($user)
+        ->get(route('tournament.courtSchedule.scoreSheets', [
+            'tournament_id' => Crypt::encryptString($tournament->id),
+            'court_no' => 1,
+        ]))
+        ->assertOk()
+        ->assertSee('Court 1')
+        ->assertSee('Team Alpha')
+        ->assertSee('Bracket')
+        ->assertSee('Open')
+        ->assertSee('Print / Save as PDF');
+});
+
+it('generates cross-bracket playoffs from the court schedule form', function () {
+    $user = User::factory()->create(['approval' => 1]);
+    $tournament = Tournament::create([
+        'code' => 'COURT-PLAYOFF-TOURNAMENT',
+        'name' => 'Court Playoff Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+
+    foreach (['A', 'B'] as $bracket) {
+        $teams = collect([1, 2])->map(fn (int $number): Teams => Teams::create([
+            'code' => "COURT-PLAYOFF-TEAM-{$bracket}-{$number}",
+            'team_no' => str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+            'team_name' => "Bracket {$bracket} Team {$number}",
+            'team_bracket' => $bracket,
+            'team_category' => 'Open',
+            'tournament_id' => $tournament->id,
+            'user_id' => $user->id,
+        ]));
+
+        Matches::create([
+            'code' => "COURT-PLAYOFF-MATCH-{$bracket}",
+            'tournament_id' => $tournament->id,
+            'team_bracket' => $bracket,
+            'team_category' => 'Open',
+            'round_no' => '1',
+            'match_no' => '1',
+            'team1_id' => $teams[0]->id,
+            'team2_id' => $teams[1]->id,
+            'team1_score' => 21,
+            'team2_score' => 18,
+            'winner_id' => $teams[0]->id,
+            'is_finalized' => true,
+            'user_id' => $user->id,
+        ]);
+    }
+
+    $this->actingAs($user)
+        ->post(route('tournament.playoffs.generate'), [
+            'tournament_id' => Crypt::encryptString($tournament->id),
+            'team_category' => 'Open',
+            'qualifiers' => [
+                ['bracket' => 'A', 'rank1_id' => Teams::where('team_name', 'Bracket A Team 1')->value('id'), 'rank2_id' => Teams::where('team_name', 'Bracket A Team 2')->value('id')],
+                ['bracket' => 'B', 'rank1_id' => Teams::where('team_name', 'Bracket B Team 1')->value('id'), 'rank2_id' => Teams::where('team_name', 'Bracket B Team 2')->value('id')],
+            ],
+        ])
+        ->assertRedirect();
+
+    expect(PlayoffMatches::query()->where('tournament_id', $tournament->id)->count())->toBe(2);
 });
 
 it('exports only the selected bracket matches as an Excel file', function () {
@@ -190,6 +261,18 @@ it('renders the Excel export button on the matches page', function () {
     ]));
 
     $response->assertOk()->assertSee('Export Excel');
+});
+
+it('renders the blank score sheet page', function () {
+    $user = User::factory()->create(['approval' => 1]);
+
+    $this->actingAs($user)
+        ->get(route('scoreSheets.blank'))
+        ->assertOk()
+        ->assertSee('Blank Score Sheet')
+        ->assertSee('Print at 100% scale to fit three blank score sheets per A4 page.')
+        ->assertSee('Team 1 Signature')
+        ->assertSee('Team 2 Signature');
 });
 
 it('renders printable score sheets for the selected category and bracket', function () {

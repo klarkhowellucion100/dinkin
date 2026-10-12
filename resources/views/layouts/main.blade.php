@@ -287,6 +287,14 @@
                         </li>
 
                         <li class="nav-item">
+                            <a href="{{ route('scoreSheets.blank') }}"
+                                class="nav-link {{ request()->routeIs('scoreSheets.blank') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-clipboard-list"></i>
+                                <p>Score Sheet</p>
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
                             <a href="#" class="nav-link">
                                 <i class="fas fa-trophy nav-icon"></i>
                                 <p>

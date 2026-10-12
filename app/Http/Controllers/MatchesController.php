@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\View\View;
 
 class MatchesController extends Controller
 {
@@ -280,6 +281,60 @@ class MatchesController extends Controller
         ]);
     }
 
+    public function courtScoreSheets(string $tournament_id, int $court_no): Response
+    {
+        try {
+            $tournamentId = Crypt::decryptString($tournament_id);
+        } catch (\Exception $e) {
+            abort(404);
+        }
+
+        $tournament = DB::table('tournaments')
+            ->where('id', $tournamentId)
+            ->first();
+
+        if (! $tournament || $court_no < 1 || $court_no > 100) {
+            abort(404);
+        }
+
+        $matches = DB::table('matches')
+            ->join('teams as team1', 'matches.team1_id', '=', 'team1.id')
+            ->join('teams as team2', 'matches.team2_id', '=', 'team2.id')
+            ->where('matches.tournament_id', $tournamentId)
+            ->where('matches.court_no', $court_no)
+            ->select([
+                'matches.id',
+                'matches.team_category',
+                'matches.team_bracket',
+                'matches.round_no',
+                'matches.match_no',
+                'matches.schedule_no',
+                'matches.court_no',
+                'team1.team_no as team1_no',
+                'team1.team_name as team1_name',
+                'team2.team_no as team2_no',
+                'team2.team_name as team2_name',
+                'matches.team1_score',
+                'matches.team2_score',
+            ])
+            ->orderBy('matches.schedule_no')
+            ->orderBy('matches.match_no')
+            ->get();
+
+        return response()->view('app.tournament.matches.score-sheets', [
+            'tournament' => $tournament,
+            'matches' => $matches,
+            'team_bracket' => null,
+            'team_category' => null,
+            'courtNo' => $court_no,
+        ]);
+    }
+
+    public function blankScoreSheets(): View
+    {
+        return view('app.tournament.matches.blank-score-sheets');
+    }
+
     private function getMatchRows(int|string $tournamentId, string $teamBracket, string $teamCategory): Collection
     {
         return DB::table('matches')
@@ -291,6 +346,8 @@ class MatchesController extends Controller
             ->where('matches.team_category', $teamCategory)
             ->select([
                 'matches.id',
+                'matches.team_category',
+                'matches.team_bracket',
                 'matches.round_no',
                 'matches.match_no',
                 'matches.schedule_no',

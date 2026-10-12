@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Matches;
 use App\Models\Teams;
 use App\Models\Tournament;
 use App\Services\CourtScheduleService;
@@ -109,7 +110,79 @@ class TournamentController extends Controller
         return view('app.tournament.court-schedule', [
             'tournamentView' => $tournamentView,
             'courtSchedule' => $this->getCourtSchedule($realId),
+            'standingsByCategory' => $this->getStandingsByCategory($realId),
         ]);
+    }
+
+    private function getStandingsByCategory(int|string $tournamentId): Collection
+    {
+        $teams = DB::table('teams')
+            ->where('tournament_id', $tournamentId)
+            ->orderBy('team_category')
+            ->orderBy('team_bracket')
+            ->orderBy('team_no')
+            ->get();
+
+        $completedMatches = Matches::query()
+            ->where('tournament_id', $tournamentId)
+            ->whereNotNull('team1_score')
+            ->whereNotNull('team2_score')
+            ->whereNotNull('winner_id')
+            ->get();
+
+        return $teams
+            ->groupBy(['team_category', 'team_bracket'])
+            ->map(fn (Collection $brackets): Collection => $brackets->map(function (Collection $bracketTeams) use ($completedMatches): Collection {
+                $standings = $bracketTeams->map(function (object $team) use ($completedMatches, $bracketTeams): object {
+                    $gamesPlayed = 0;
+                    $wins = 0;
+                    $losses = 0;
+                    $pointsFor = 0;
+                    $pointsAgainst = 0;
+
+                    foreach ($completedMatches as $match) {
+                        if ((int) $match->team1_id !== (int) $team->id && (int) $match->team2_id !== (int) $team->id) {
+                            continue;
+                        }
+
+                        $gamesPlayed++;
+                        $teamIsFirst = (int) $match->team1_id === (int) $team->id;
+                        $teamScore = $teamIsFirst ? $match->team1_score : $match->team2_score;
+                        $opponentScore = $teamIsFirst ? $match->team2_score : $match->team1_score;
+
+                        if ((int) $match->winner_id === (int) $team->id) {
+                            $wins++;
+                            $pointsFor += (int) $teamScore;
+                            $pointsAgainst += (int) $opponentScore;
+                        } else {
+                            $losses++;
+                        }
+                    }
+
+                    return (object) [
+                        'team_id' => $team->id,
+                        'team_no' => $team->team_no,
+                        'team_name' => $team->team_name,
+                        'games_to_be_played' => max($bracketTeams->count() - 1, 0),
+                        'games_played' => $gamesPlayed,
+                        'wins' => $wins,
+                        'losses' => $losses,
+                        'points_for' => $pointsFor,
+                        'points_against' => $pointsAgainst,
+                        'point_differential' => $pointsFor - $pointsAgainst,
+                    ];
+                });
+
+                return $standings->sort(function (object $first, object $second): int {
+                    return ($second->wins <=> $first->wins)
+                        ?: ($second->point_differential <=> $first->point_differential)
+                        ?: ($first->points_against <=> $second->points_against);
+                })->values()->map(function (object $standing, int $index): object {
+                    $standing->rank = $index + 1;
+
+                    return $standing;
+                });
+            }));
     }
 
     private function getCourtSchedule(int|string $tournamentId): Collection
@@ -120,16 +193,25 @@ class TournamentController extends Controller
             ->where('matches.tournament_id', $tournamentId)
             ->whereNotNull('matches.schedule_no')
             ->select([
+                'matches.id',
                 'matches.schedule_no',
                 'matches.court_no',
                 'matches.team_category',
                 'matches.team_bracket',
                 'matches.round_no',
                 'matches.match_no',
+                'matches.team1_score',
+                'matches.team2_score',
+                'matches.winner_id',
                 'matches.is_finalized',
+                'team1.team_no as team1_no',
                 'team1.team_name as team1_name',
+                'team2.team_no as team2_no',
                 'team2.team_name as team2_name',
+                'winner.team_no as winner_no',
+                'winner.team_name as winner_name',
             ])
+            ->leftJoin('teams as winner', 'matches.winner_id', '=', 'winner.id')
             ->orderBy('matches.schedule_no')
             ->orderBy('matches.court_no')
             ->get();

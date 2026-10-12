@@ -19,7 +19,7 @@
             margin: 0;
             color: #111827;
             font-family: Arial, sans-serif;
-            font-size: 8px;
+            font-size: 9px;
         }
 
         .toolbar {
@@ -50,7 +50,7 @@
             height: 92mm;
             min-height: 92mm;
             overflow: hidden;
-            padding: 3mm;
+            padding: 4mm;
             margin-bottom: 2mm;
             border: 1px solid #111827;
             page-break-inside: avoid;
@@ -66,18 +66,18 @@
 
         .heading h1 {
             margin: 0;
-            font-size: 12px;
+            font-size: 15px;
             letter-spacing: .5px;
         }
 
         .heading h2 {
             margin: 1px 0;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .heading p {
             margin: 1px 0 3px;
-            font-size: 7px;
+            font-size: 9px;
         }
 
         .match-meta,
@@ -85,35 +85,35 @@
         .officials {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 2px 8px;
-            margin-bottom: 3px;
+            gap: 3px 10px;
+            margin-bottom: 5px;
         }
 
         .match-meta {
-            grid-template-columns: repeat(4, 1fr);
-            padding: 2px;
+            grid-template-columns: repeat(6, 1fr);
+            padding: 4px;
             border: 1px solid #9ca3af;
             text-align: center;
         }
 
         .team-box {
-            padding: 2px;
+            padding: 4px;
             border: 1px solid #9ca3af;
         }
 
         .line {
             display: inline-block;
-            min-width: 65%;
+            min-width: 60%;
             border-bottom: 1px solid #374151;
         }
 
         .serve-timeout {
-            margin-top: 1px;
-            font-size: 7px;
+            margin-top: 3px;
+            font-size: 9px;
         }
 
         .tracker-title {
-            margin: 2px 0 1px;
+            margin: 4px 0 2px;
             font-weight: 700;
             text-align: center;
         }
@@ -123,51 +123,51 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 9px;
-            height: 9px;
+            width: 14px;
+            height: 14px;
             border: 1px solid #374151;
         }
 
         .final-score-box {
-            width: 22px;
-            height: 15px;
-            margin: 0 2px;
+            width: 32px;
+            height: 22px;
+            margin: 0 4px;
             vertical-align: middle;
         }
 
         .tracker-row {
             display: grid;
-            grid-template-columns: 58px 1fr;
+            grid-template-columns: 75px 1fr;
             align-items: center;
-            gap: 3px;
-            margin-bottom: 1px;
-            margin-top: 2px;
+            gap: 5px;
+            margin-bottom: 3px;
+            margin-top: 4px;
         }
 
         .tracker-label {
-            font-size: 7px;
+            font-size: 9px;
             font-weight: 700;
         }
 
         .tracker-boxes {
             display: grid;
             grid-template-columns: repeat(22, 1fr);
-            gap: 1px;
+            gap: 2px;
         }
 
         .number-box {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 11px;
-            height: 11px;
+            width: 15px;
+            height: 15px;
             border: 1px solid #374151;
-            font-size: 6px;
+            font-size: 8px;
             line-height: 1;
         }
 
         .score-title {
-            margin: 2px 0;
+            margin: 4px 0;
             font-weight: 700;
             text-align: center;
         }
@@ -175,21 +175,21 @@
         .footer-signatures {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 20px;
-            margin-top: 5px;
+            gap: 25px;
+            margin-top: 9px;
             text-align: center;
         }
 
         .final-score {
-            margin-top: 3px;
+            margin-top: 6px;
             text-align: center;
             font-weight: 700;
         }
 
         .signature-line {
-            padding-top: 8px;
+            padding-top: 12px;
             border-top: 1px solid #374151;
-            font-size: 7px;
+            font-size: 9px;
         }
 
         @media print {
@@ -207,11 +207,15 @@
 <body>
     <div class="toolbar">
         <button type="button" onclick="window.print()">Print / Save as PDF</button>
-        <a href="{{ route('tournament.matches.view', [
-            'tournament_id' => Crypt::encryptString($tournament->id),
-            'team_bracket' => $team_bracket,
-            'team_category' => $team_category,
-        ]) }}">Back to Matches</a>
+        @if (isset($courtNo))
+            <a href="{{ route('tournament.courtSchedule', Crypt::encryptString($tournament->id)) }}">Back to Court Schedule</a>
+        @else
+            <a href="{{ route('tournament.matches.view', [
+                'tournament_id' => Crypt::encryptString($tournament->id),
+                'team_bracket' => $team_bracket,
+                'team_category' => $team_category,
+            ]) }}">Back to Matches</a>
+        @endif
         <div style="margin-top: 6px; color: #4b5563;">Print at 100% scale to fit three score sheets per A4 page.</div>
     </div>
 
@@ -220,7 +224,14 @@
             <div class="heading">
                 <h1>DinKin App</h1>
                 <h2>{{ $tournament->name }}</h2>
-                <p>{{ \Illuminate\Support\Carbon::parse($tournament->date)->format('F j, Y') }} · {{ $team_category }} · Bracket {{ $team_bracket }}</p>
+            <p>
+                {{ \Illuminate\Support\Carbon::parse($tournament->date)->format('F j, Y') }} ·
+                @if (isset($courtNo))
+                    Court {{ $courtNo }}
+                @else
+                    {{ $team_category }} · Bracket {{ $team_bracket }}
+                @endif
+            </p>
             </div>
 
             <div class="match-meta">
@@ -228,6 +239,8 @@
                 <div><strong>Match</strong><br>{{ $match->match_no }}</div>
                 <div><strong>Schedule</strong><br>{{ $match->schedule_no ?? '-' }}</div>
                 <div><strong>Court</strong><br>{{ $match->court_no ?? '-' }}</div>
+                <div><strong>Category</strong><br>{{ $match->team_category ?? $team_category ?? '-' }}</div>
+                <div><strong>Bracket</strong><br>{{ $match->team_bracket ?? $team_bracket ?? '-' }}</div>
             </div>
 
             <div class="team-info">
@@ -284,7 +297,14 @@
             </div>
         </section>
     @empty
-        <p>No matches are available for this category and bracket.</p>
+        <p>
+            No matches are available for
+            @if (isset($courtNo))
+                Court {{ $courtNo }}.
+            @else
+                this category and bracket.
+            @endif
+        </p>
     @endforelse
 </body>
 

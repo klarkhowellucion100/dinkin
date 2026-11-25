@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Matches;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -632,7 +633,7 @@ class PublicTournamentController extends Controller
 
     private function courtSchedule(int $tournamentId)
     {
-        return DB::table('matches')
+        $schedule = DB::table('matches')
             ->join('teams as team1', 'matches.team1_id', '=', 'team1.id')
             ->join('teams as team2', 'matches.team2_id', '=', 'team2.id')
             ->where('matches.tournament_id', $tournamentId)
@@ -658,6 +659,25 @@ class PublicTournamentController extends Controller
 
                 return $match;
             });
+
+        $tournament = DB::table('tournaments')
+            ->where('id', $tournamentId)
+            ->select(['schedule_mode', 'schedule_start_time', 'match_duration_minutes'])
+            ->first();
+
+        if (! $tournament || ! str_starts_with((string) $tournament->schedule_mode, 'timed_') || ! $tournament->schedule_start_time || ! $tournament->match_duration_minutes) {
+            return $schedule;
+        }
+
+        $startTime = Carbon::createFromFormat('H:i', substr((string) $tournament->schedule_start_time, 0, 5));
+
+        return $schedule->map(function (object $match) use ($startTime, $tournament): object {
+            $matchStart = $startTime->copy()->addMinutes(((int) $match->schedule_no - 1) * (int) $tournament->match_duration_minutes);
+            $matchEnd = $matchStart->copy()->addMinutes((int) $tournament->match_duration_minutes);
+            $match->schedule_time = $matchStart->format('g:i A').' – '.$matchEnd->format('g:i A');
+
+            return $match;
+        });
     }
 
     private function categoryPriority(string $category): int

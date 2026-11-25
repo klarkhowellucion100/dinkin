@@ -31,6 +31,12 @@
                         <i class="fas fa-stopwatch"></i> Court Schedule
                     </a>
                 </div>
+                <div class="col-6 w-25">
+                    <a href="{{ route('tournament.offlineBackup', Crypt::encryptString($tournamentView->id)) }}"
+                        class="btn btn-block btn-success mb-3">
+                        <i class="fas fa-file-excel"></i> Download Offline Excel Backup
+                    </a>
+                </div>
 
             </div>
 

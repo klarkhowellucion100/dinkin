@@ -1,7 +1,7 @@
 <x-main-layout>
     <style>
         .court-schedule-table {
-            min-width: 720px;
+            min-width: 820px;
         }
 
         .court-schedule-table th {
@@ -76,13 +76,38 @@
                             <input type="number" min="1" max="100" required class="form-control" id="court_count"
                                 name="court_count" value="{{ $tournamentView->court_count ?? '' }}" placeholder="e.g. 3">
                         </div>
+                        <div class="col-sm-5 col-md-4">
+                            <label for="schedule_mode" class="form-label">Generate schedule by</label>
+                            <select name="schedule_mode" id="schedule_mode" class="form-control">
+                                @if (($tournamentView->schedule_mode ?? 'bracket') === 'bracket')
+                                    <option value="bracket" selected hidden>Per bracket (legacy)</option>
+                                @elseif (($tournamentView->schedule_mode ?? 'bracket') === 'category')
+                                    <option value="category" selected hidden>Per category (legacy)</option>
+                                @endif
+                                <option value="timed_bracket" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_bracket' ? 'selected' : '' }}>Timed court spread per bracket</option>
+                                <option value="timed_category_spread" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_category_spread' ? 'selected' : '' }}>Timed court spread per category</option>
+                                <option value="timed_category" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_category' ? 'selected' : '' }}>Timed per category</option>
+                                <option value="timed_alternate_category" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_alternate_category' ? 'selected' : '' }}>Timed alternate per category</option>
+                                <option value="timed_finish_category" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_finish_category' ? 'selected' : '' }}>Timed finish per category</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-4 col-md-3 timed-schedule-setting {{ str_starts_with((string) ($tournamentView->schedule_mode ?? ''), 'timed_') ? '' : 'd-none' }}">
+                            <label for="schedule_start_time" class="form-label">Start time</label>
+                            <input type="time" class="form-control" id="schedule_start_time" name="schedule_start_time"
+                                value="{{ substr((string) ($tournamentView->schedule_start_time ?? ''), 0, 5) }}">
+                        </div>
+                        <div class="col-sm-4 col-md-3 timed-schedule-setting {{ str_starts_with((string) ($tournamentView->schedule_mode ?? ''), 'timed_') ? '' : 'd-none' }}">
+                            <label for="match_duration_minutes" class="form-label">Minutes per game</label>
+                            <input type="number" min="1" max="240" class="form-control" id="match_duration_minutes" name="match_duration_minutes"
+                                value="{{ $tournamentView->match_duration_minutes ?? '' }}" placeholder="e.g. 12">
+                        </div>
                         <div class="col-sm-auto">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-magic"></i> Generate Court Schedule
                             </button>
                         </div>
                         <div class="col-12">
-                            <small class="text-muted">Matches are assigned from higher categories to lower categories, then distributed across the courts.</small>
+                            <small class="text-muted">Timed alternate keeps categories on rotating courts. Timed finish completes every match in one bracket before starting the next bracket, then reuses the court for the next category.</small>
                         </div>
                     </form>
 
@@ -97,6 +122,11 @@
                                     <i class="fas fa-print"></i> Court {{ $court }}
                                 </a>
                             @endfor
+                            @if (str_starts_with((string) $tournamentView->schedule_mode, 'timed_') && $courtSchedule->isNotEmpty())
+                                <a href="{{ route('tournament.courtSchedule.print', Crypt::encryptString($tournamentView->id)) }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-print"></i> Print timed schedule
+                                </a>
+                            @endif
                         </div>
                     @endif
 
@@ -111,6 +141,9 @@
                                 <thead>
                                     <tr>
                                         <th class="court-schedule-number">No.</th>
+                                        @if (str_starts_with((string) $tournamentView->schedule_mode, 'timed_'))
+                                            <th>Time</th>
+                                        @endif
                                         @for ($court = 1; $court <= $courts; $court++)
                                             <th>Court {{ $court }}</th>
                                         @endfor
@@ -120,6 +153,9 @@
                                     @foreach ($scheduleNumbers as $scheduleNumber)
                                         <tr>
                                             <td class="court-schedule-number">{{ $scheduleNumber }}</td>
+                                            @if (str_starts_with((string) $tournamentView->schedule_mode, 'timed_'))
+                                                <td class="text-nowrap">{{ $courtSchedule->firstWhere('schedule_no', $scheduleNumber)->schedule_time ?? '—' }}</td>
+                                            @endif
                                             @for ($court = 1; $court <= $courts; $court++)
                                                 @php
                                                     $scheduledMatch = $courtSchedule->first(fn ($match) => (int) $match->schedule_no === (int) $scheduleNumber && (int) $match->court_no === $court);
@@ -282,6 +318,15 @@
     @endforeach
 
     <script>
+        document.getElementById('schedule_mode')?.addEventListener('change', function () {
+            document.querySelectorAll('.timed-schedule-setting').forEach((field) => {
+                field.classList.toggle('d-none', !this.value.startsWith('timed_'));
+            });
+
+            document.getElementById('schedule_start_time').required = this.value.startsWith('timed_');
+            document.getElementById('match_duration_minutes').required = this.value.startsWith('timed_');
+        });
+
         document.addEventListener('DOMContentLoaded', function () {
             document.querySelectorAll('.court-score-form').forEach(function (form) {
                 form.addEventListener('submit', async function (event) {

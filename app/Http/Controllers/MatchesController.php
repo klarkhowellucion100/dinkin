@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Matches;
 use App\Models\Teams;
 use App\Services\RoundRobinMatchService;
+use App\Services\TournamentWorkbookService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Collection;
@@ -16,7 +17,10 @@ use Illuminate\View\View;
 
 class MatchesController extends Controller
 {
-    public function __construct(private readonly RoundRobinMatchService $matchSchedule) {}
+    public function __construct(
+        private readonly RoundRobinMatchService $matchSchedule,
+        private readonly TournamentWorkbookService $workbook,
+    ) {}
 
     public function generate(Request $request, $tournament_id)
     {
@@ -253,6 +257,65 @@ class MatchesController extends Controller
             ])
             ->header('Content-Type', 'application/vnd.ms-excel; charset=UTF-8')
             ->header('Content-Disposition', 'attachment; filename="'.$filename.'"');
+    }
+
+    public function backupExport(string $tournament_id): Response
+    {
+        try {
+            $tournamentId = Crypt::decryptString($tournament_id);
+        } catch (\Exception $e) {
+            abort(404);
+        }
+
+        $tournament = DB::table('tournaments')->where('id', $tournamentId)->first();
+
+        if (! $tournament) {
+            abort(404);
+        }
+
+        $teams = DB::table('teams')
+            ->where('tournament_id', $tournamentId)
+            ->orderBy('team_category')
+            ->orderBy('team_bracket')
+            ->orderBy('team_no')
+            ->get();
+
+        $matches = DB::table('matches')
+            ->join('teams as team1', 'matches.team1_id', '=', 'team1.id')
+            ->join('teams as team2', 'matches.team2_id', '=', 'team2.id')
+            ->where('matches.tournament_id', $tournamentId)
+            ->select([
+                'matches.id',
+                'matches.team_category',
+                'matches.team_bracket',
+                'matches.round_no',
+                'matches.match_no',
+                'matches.schedule_no',
+                'matches.court_no',
+                'matches.team1_id',
+                'team1.team_no as team1_no',
+                'team1.team_name as team1_name',
+                'matches.team1_score',
+                'matches.team2_id',
+                'team2.team_no as team2_no',
+                'team2.team_name as team2_name',
+                'matches.team2_score',
+            ])
+            ->orderBy('matches.team_category')
+            ->orderBy('matches.team_bracket')
+            ->orderBy('matches.round_no')
+            ->orderBy('matches.match_no')
+            ->get();
+
+        $filename = Str::of($tournament->name)
+            ->ascii()
+            ->replaceMatches('/[^A-Za-z0-9]+/', '_')
+            ->trim('_')
+            ->value() ?: 'tournament';
+
+        return response($this->workbook->build($tournament, $teams, $matches))
+            ->header('Content-Type', 'application/xml; charset=UTF-8')
+            ->header('Content-Disposition', 'attachment; filename="'.$filename.'_offline_backup.xml"');
     }
 
     public function scoreSheets(string $tournament_id, string $team_bracket, string $team_category): Response

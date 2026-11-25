@@ -83,8 +83,15 @@ class RoundRobinMatchService
             }
         });
 
-        $courtCount = DB::table('tournaments')->where('id', $tournamentId)->value('court_count');
-        $this->courtSchedule->assign($tournamentId, $courtCount === null ? null : (int) $courtCount);
+        $tournament = DB::table('tournaments')
+            ->where('id', $tournamentId)
+            ->first(['court_count', 'schedule_mode']);
+
+        $this->courtSchedule->assign(
+            $tournamentId,
+            $tournament?->court_count === null ? null : (int) $tournament->court_count,
+            $tournament?->schedule_mode ?? 'bracket'
+        );
     }
 
     /**

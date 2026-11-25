@@ -287,6 +287,14 @@
                         </li>
 
                         <li class="nav-item">
+                            <a href="{{ route('open-play.index') }}"
+                                class="nav-link {{ request()->routeIs('open-play.*') ? 'active' : '' }}">
+                                <i class="nav-icon fas fa-sync-alt"></i>
+                                <p>Open Play</p>
+                            </a>
+                        </li>
+
+                        <li class="nav-item">
                             <a href="{{ route('scoreSheets.blank') }}"
                                 class="nav-link {{ request()->routeIs('scoreSheets.blank') ? 'active' : '' }}">
                                 <i class="nav-icon fas fa-clipboard-list"></i>

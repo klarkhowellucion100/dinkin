@@ -85,6 +85,260 @@ it('assigns generated matches across courts in category priority order', functio
         ]);
 });
 
+it('keeps categories together and reuses courts sequentially in category mode', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::create([
+        'code' => 'CATEGORY-COURT-TOURNAMENT',
+        'name' => 'Category Court Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+
+    foreach (['Open', 'High Intermediate', 'High Beginners', 'Low Beginners'] as $index => $category) {
+        $teams = collect([1, 2])->map(fn (int $number): Teams => Teams::create([
+            'code' => "CATEGORY-TEAM-{$index}-{$number}",
+            'team_no' => str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+            'team_name' => "{$category} Team {$number}",
+            'team_bracket' => 'A',
+            'team_category' => $category,
+            'tournament_id' => $tournament->id,
+            'user_id' => $user->id,
+        ]));
+
+        Matches::create([
+            'code' => "CATEGORY-MATCH-{$index}",
+            'tournament_id' => $tournament->id,
+            'team_bracket' => 'A',
+            'team_category' => $category,
+            'round_no' => '1',
+            'match_no' => '1',
+            'team1_id' => $teams[0]->id,
+            'team2_id' => $teams[1]->id,
+            'user_id' => $user->id,
+        ]);
+    }
+
+    $this->actingAs($user)
+        ->put(route('tournament.courtSchedule.update', Crypt::encryptString($tournament->id)), [
+            'court_count' => 2,
+            'schedule_mode' => 'category',
+        ])
+        ->assertRedirect();
+
+    expect(Matches::query()->where('tournament_id', $tournament->id)->get()
+        ->sortBy(['court_no', 'schedule_no'])
+        ->map(fn (Matches $match): array => [$match->team_category, $match->schedule_no, $match->court_no])->values()->all())
+        ->toBe([
+            ['Open', 1, 1],
+            ['High Beginners', 2, 1],
+            ['High Intermediate', 1, 2],
+            ['Low Beginners', 2, 2],
+        ]);
+
+    expect($tournament->fresh()->schedule_mode)->toBe('category');
+});
+
+it('generates timed category blocks across courts', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::create([
+        'code' => 'TIMED-CATEGORY-TOURNAMENT',
+        'name' => 'Timed Category Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+
+    $matchNumber = 1;
+    foreach ([['Open', 'A'], ['Open', 'B'], ['High Beginners', 'A'], ['High Beginners', 'B'], ['High Beginners', 'C']] as [$category, $bracket]) {
+        $teams = collect([1, 2])->map(fn (int $number): Teams => Teams::create([
+            'code' => "TIMED-TEAM-{$matchNumber}-{$number}",
+            'team_no' => str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+            'team_name' => "{$category} {$bracket} Team {$number}",
+            'team_bracket' => $bracket,
+            'team_category' => $category,
+            'tournament_id' => $tournament->id,
+            'user_id' => $user->id,
+        ]));
+
+        Matches::create([
+            'code' => "TIMED-MATCH-{$matchNumber}",
+            'tournament_id' => $tournament->id,
+            'team_bracket' => $bracket,
+            'team_category' => $category,
+            'round_no' => '1',
+            'match_no' => (string) $matchNumber,
+            'team1_id' => $teams[0]->id,
+            'team2_id' => $teams[1]->id,
+            'user_id' => $user->id,
+        ]);
+
+        $matchNumber++;
+    }
+
+    $this->actingAs($user)
+        ->put(route('tournament.courtSchedule.update', Crypt::encryptString($tournament->id)), [
+            'court_count' => 2,
+            'schedule_mode' => 'timed_category',
+            'schedule_start_time' => '18:00',
+            'match_duration_minutes' => 12,
+        ])
+        ->assertRedirect();
+
+    expect(Matches::query()->where('tournament_id', $tournament->id)->orderBy('schedule_no')->orderBy('court_no')->get()
+        ->map(fn (Matches $match): array => [$match->team_category, $match->team_bracket, $match->schedule_no, $match->court_no])->all())
+        ->toBe([
+            ['Open', 'A', 1, 1],
+            ['Open', 'B', 1, 2],
+            ['High Beginners', 'A', 2, 1],
+            ['High Beginners', 'B', 2, 2],
+            ['High Beginners', 'C', 3, 1],
+        ]);
+
+    expect($tournament->fresh()->schedule_mode)->toBe('timed_category')
+        ->and($tournament->fresh()->schedule_start_time)->toStartWith('18:00')
+        ->and($tournament->fresh()->match_duration_minutes)->toBe(12);
+
+    $this->actingAs($user)
+        ->get(route('tournament.courtSchedule.print', Crypt::encryptString($tournament->id)))
+        ->assertOk()
+        ->assertSee('6:00 PM – 6:12 PM')
+        ->assertSee('6:12 PM – 6:24 PM');
+});
+
+it('requires timed schedule settings for timed category mode', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::create([
+        'code' => 'TIMED-VALIDATION-TOURNAMENT',
+        'name' => 'Timed Validation Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+
+    $this->actingAs($user)
+        ->put(route('tournament.courtSchedule.update', Crypt::encryptString($tournament->id)), [
+            'court_count' => 2,
+            'schedule_mode' => 'timed_category',
+        ])
+        ->assertSessionHasErrors(['schedule_start_time', 'match_duration_minutes']);
+
+    expect($tournament->fresh()->court_count)->toBeNull()
+        ->and($tournament->fresh()->schedule_mode)->toBe('bracket');
+});
+
+it('reuses a freed court for the next category in finish mode', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::create([
+        'code' => 'TIMED-FINISH-TOURNAMENT',
+        'name' => 'Timed Finish Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+
+    $matchNumber = 1;
+    foreach ([['Open', 1], ['High Beginners', 3], ['Low Beginners', 1]] as [$category, $matchCount]) {
+        for ($categoryMatch = 1; $categoryMatch <= $matchCount; $categoryMatch++) {
+            $teams = collect([1, 2])->map(fn (int $number): Teams => Teams::create([
+                'code' => "FINISH-TEAM-{$matchNumber}-{$number}",
+                'team_no' => str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+                'team_name' => "{$category} Team {$matchNumber}-{$number}",
+                'team_bracket' => $category === 'High Beginners' && $categoryMatch === 1 ? 'B' : 'A',
+                'team_category' => $category,
+                'tournament_id' => $tournament->id,
+                'user_id' => $user->id,
+            ]));
+
+            Matches::create([
+                'code' => "FINISH-MATCH-{$matchNumber}",
+                'tournament_id' => $tournament->id,
+                'team_bracket' => $category === 'High Beginners' && $categoryMatch === 1 ? 'B' : 'A',
+                'team_category' => $category,
+                'round_no' => '1',
+                'match_no' => (string) $categoryMatch,
+                'team1_id' => $teams[0]->id,
+                'team2_id' => $teams[1]->id,
+                'user_id' => $user->id,
+            ]);
+
+            $matchNumber++;
+        }
+    }
+
+    $this->actingAs($user)
+        ->put(route('tournament.courtSchedule.update', Crypt::encryptString($tournament->id)), [
+            'court_count' => 2,
+            'schedule_mode' => 'timed_finish_category',
+            'schedule_start_time' => '18:00',
+            'match_duration_minutes' => 12,
+        ])
+        ->assertRedirect();
+
+    expect(Matches::query()->where('tournament_id', $tournament->id)->get()
+        ->sortBy(['team_category', 'schedule_no'])
+        ->map(fn (Matches $match): array => [$match->team_category, $match->team_bracket, $match->schedule_no, $match->court_no])->values()->all())
+        ->toBe([
+            ['High Beginners', 'A', 1, 2],
+            ['High Beginners', 'A', 2, 2],
+            ['High Beginners', 'B', 3, 2],
+            ['Low Beginners', 'A', 2, 1],
+            ['Open', 'A', 1, 1],
+        ]);
+});
+
+it('adds time ranges to the spread bracket and category modes', function () {
+    $user = User::factory()->create();
+
+    foreach (['timed_bracket', 'timed_category_spread'] as $modeIndex => $scheduleMode) {
+        $tournament = Tournament::create([
+            'code' => "TIMED-SPREAD-{$modeIndex}",
+            'name' => "Timed Spread Cup {$modeIndex}",
+            'date' => '2026-10-15',
+            'venue' => 'Arena One',
+            'user_id' => $user->id,
+        ]);
+
+        foreach (['Open', 'High Beginners'] as $matchIndex => $category) {
+            $teams = collect([1, 2])->map(fn (int $number): Teams => Teams::create([
+                'code' => "SPREAD-TEAM-{$modeIndex}-{$matchIndex}-{$number}",
+                'team_no' => str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+                'team_name' => "{$category} Team {$number}",
+                'team_bracket' => 'A',
+                'team_category' => $category,
+                'tournament_id' => $tournament->id,
+                'user_id' => $user->id,
+            ]));
+
+            Matches::create([
+                'code' => "SPREAD-MATCH-{$modeIndex}-{$matchIndex}",
+                'tournament_id' => $tournament->id,
+                'team_bracket' => 'A',
+                'team_category' => $category,
+                'round_no' => '1',
+                'match_no' => '1',
+                'team1_id' => $teams[0]->id,
+                'team2_id' => $teams[1]->id,
+                'user_id' => $user->id,
+            ]);
+        }
+
+        $this->actingAs($user)
+            ->put(route('tournament.courtSchedule.update', Crypt::encryptString($tournament->id)), [
+                'court_count' => 2,
+                'schedule_mode' => $scheduleMode,
+                'schedule_start_time' => '18:00',
+                'match_duration_minutes' => 12,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($user)
+            ->get(route('tournament.courtSchedule', Crypt::encryptString($tournament->id)))
+            ->assertOk()
+            ->assertSee('6:00 PM – 6:12 PM');
+    }
+});
+
 it('renders the court schedule on its own tournament page', function () {
     $user = User::factory()->create(['approval' => 1]);
     $tournament = Tournament::create([
@@ -261,6 +515,64 @@ it('renders the Excel export button on the matches page', function () {
     ]));
 
     $response->assertOk()->assertSee('Export Excel');
+});
+
+it('exports a full tournament offline workbook with score and standings formulas', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::create([
+        'code' => 'OFFLINE-TOURNAMENT',
+        'name' => 'Offline Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+    $teams = collect(['Team Alpha', 'Team Bravo'])->map(fn (string $name, int $index): Teams => Teams::create([
+        'code' => 'OFFLINE-TEAM-'.($index + 1),
+        'team_no' => str_pad((string) ($index + 1), 2, '0', STR_PAD_LEFT),
+        'team_name' => $name,
+        'team_bracket' => 'A',
+        'team_category' => 'Open',
+        'tournament_id' => $tournament->id,
+        'user_id' => $user->id,
+    ]));
+    Matches::create([
+        'code' => 'OFFLINE-MATCH-1',
+        'tournament_id' => $tournament->id,
+        'team_bracket' => 'A',
+        'team_category' => 'Open',
+        'round_no' => '1',
+        'match_no' => '1',
+        'team1_id' => $teams[0]->id,
+        'team2_id' => $teams[1]->id,
+        'user_id' => $user->id,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('tournament.offlineBackup', Crypt::encryptString($tournament->id)));
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'application/xml; charset=UTF-8')
+        ->assertHeader('Content-Disposition', 'attachment; filename="Offline_Cup_offline_backup.xml"')
+        ->assertSee('ss:Name="Matches"', false)
+        ->assertSee('ss:Name="Standings"', false)
+        ->assertSee('Team 1 Score')
+        ->assertSee('COUNTIFS', false)
+        ->assertSee('Team Alpha');
+});
+
+it('renders the offline backup button on the tournament page', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::create([
+        'code' => 'OFFLINE-BUTTON-TOURNAMENT',
+        'name' => 'Offline Button Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('tournament.view', Crypt::encryptString($tournament->id)))
+        ->assertOk()
+        ->assertSee('Download Offline Excel Backup');
 });
 
 it('renders the blank score sheet page', function () {

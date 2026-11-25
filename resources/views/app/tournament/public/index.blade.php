@@ -1801,6 +1801,9 @@
 
                     let html = '<table class="table table-bordered court-schedule-table mb-0"><thead><tr>';
                     html += '<th class="court-schedule-number">No.</th>';
+                    if (schedule.some(function (match) { return match.schedule_time; })) {
+                        html += '<th>Time</th>';
+                    }
                     for (let court = 1; court <= courts; court++) {
                         html += '<th>Court ' + court + '</th>';
                     }
@@ -1808,6 +1811,12 @@
 
                     scheduleNumbers.forEach(function (scheduleNumber) {
                         html += '<tr><td class="court-schedule-number">' + scheduleNumber + '</td>';
+                        if (schedule.some(function (match) { return match.schedule_time; })) {
+                            const scheduledMatch = schedule.find(function (item) {
+                                return Number(item.schedule_no) === scheduleNumber;
+                            });
+                            html += '<td class="text-nowrap">' + (scheduledMatch?.schedule_time || '—') + '</td>';
+                        }
 
                         for (let court = 1; court <= courts; court++) {
                             const match = schedule.find(function (item) {

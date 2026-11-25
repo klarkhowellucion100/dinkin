@@ -2,8 +2,10 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MatchesController;
+use App\Http\Controllers\OpenPlaySessionController;
 use App\Http\Controllers\PlayoffMatchesController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\PublicOpenPlayController;
 use App\Http\Controllers\PublicTournamentController;
 use App\Http\Controllers\RandomizerController;
 use App\Http\Controllers\TeamsController;
@@ -16,6 +18,31 @@ Route::get('/', function () {
 });
 
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware(['auth', 'verified'])->name('dashboard');
+
+// Open Play Sessions
+Route::middleware('auth')->group(function () {
+    Route::get('/open-play', [OpenPlaySessionController::class, 'index'])->name('open-play.index');
+    Route::get('/open-play/create', [OpenPlaySessionController::class, 'create'])->name('open-play.create');
+    Route::post('/open-play', [OpenPlaySessionController::class, 'store'])->name('open-play.store');
+    Route::get('/open-play/{session}', [OpenPlaySessionController::class, 'show'])->name('open-play.show');
+    Route::post('/open-play/{session}/players', [OpenPlaySessionController::class, 'addPlayer'])->name('open-play.players.add');
+    Route::post('/open-play/{session}/players/{player}/check-in', [OpenPlaySessionController::class, 'checkIn'])->name('open-play.players.check-in');
+    Route::post('/open-play/{session}/players/{player}/check-out', [OpenPlaySessionController::class, 'checkOut'])->name('open-play.players.check-out');
+    Route::post('/open-play/{session}/fixed-partner', [OpenPlaySessionController::class, 'setFixedPartner'])->name('open-play.fixed-partner');
+    Route::post('/open-play/{session}/start', [OpenPlaySessionController::class, 'start'])->name('open-play.start');
+    Route::post('/open-play/{session}/auto-pick', [OpenPlaySessionController::class, 'autoPick'])->name('open-play.auto-pick');
+    Route::post('/open-play/{session}/matches/add', [OpenPlaySessionController::class, 'addMatch'])->name('open-play.matches.add');
+    Route::post('/open-play/{session}/matches/add-player', [OpenPlaySessionController::class, 'addPlayerToMatch'])->name('open-play.matches.add-player');
+    Route::post('/open-play/{session}/courts/add', [OpenPlaySessionController::class, 'addCourt'])->name('open-play.courts.add');
+    Route::post('/open-play/{session}/undo', [OpenPlaySessionController::class, 'undo'])->name('open-play.undo');
+    Route::post('/open-play/matches/{match}/dispatch', [OpenPlaySessionController::class, 'dispatch'])->name('open-play.matches.dispatch');
+    Route::post('/open-play/matches/{match}/players/{player}/remove', [OpenPlaySessionController::class, 'removePlayerFromMatch'])->name('open-play.matches.players.remove');
+    Route::post('/open-play/matches/{match}/result', [OpenPlaySessionController::class, 'result'])->name('open-play.matches.result');
+    Route::post('/open-play/{session}/end', [OpenPlaySessionController::class, 'end'])->name('open-play.end');
+    Route::delete('/open-play/{session}', [OpenPlaySessionController::class, 'destroy'])->name('open-play.destroy');
+});
+
+Route::get('/open-play/public/{session}', [PublicOpenPlayController::class, 'show'])->name('public.open-play.show');
 
 // Randomizer
 Route::middleware('auth')->group(function () {
@@ -32,6 +59,7 @@ Route::get('/tournament/create', [TournamentController::class, 'create'])->name(
 Route::post('/tournament/store', [TournamentController::class, 'store'])->name('tournament.store')->middleware('auth');
 Route::get('/tournament/view/{id}', [TournamentController::class, 'view'])->name('tournament.view')->middleware('auth');
 Route::get('/tournament/view/{id}/court-schedule', [TournamentController::class, 'courtSchedule'])->name('tournament.courtSchedule')->middleware('auth');
+Route::get('/tournament/view/{id}/court-schedule/print', [TournamentController::class, 'printCourtSchedule'])->name('tournament.courtSchedule.print')->middleware('auth');
 Route::put('/tournament/{id}/court-schedule', [TournamentController::class, 'updateCourtCount'])->name('tournament.courtSchedule.update')->middleware('auth');
 Route::get('/tournament/{id}', [TournamentController::class, 'edit'])->name('tournament.edit')->middleware('auth');
 Route::put('/tournament/{id}', [TournamentController::class, 'update'])->name('tournament.update')->middleware('auth');
@@ -62,6 +90,11 @@ Route::get(
     '/tournament/{tournament_id}/matches/{team_bracket}/{team_category}/export',
     [MatchesController::class, 'export']
 )->name('tournament.matches.export')->middleware('auth');
+
+Route::get(
+    '/tournament/{tournament_id}/offline-backup',
+    [MatchesController::class, 'backupExport']
+)->name('tournament.offlineBackup')->middleware('auth');
 
 Route::get(
     '/tournament/{tournament_id}/matches/{team_bracket}/{team_category}/score-sheets',

@@ -14,6 +14,8 @@ class Tournament extends Model
     {
         return [
             'court_count' => 'integer',
+            'schedule_mode' => 'string',
+            'match_duration_minutes' => 'integer',
         ];
     }
 }

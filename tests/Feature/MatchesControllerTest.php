@@ -287,6 +287,68 @@ it('reuses a freed court for the next category in finish mode', function () {
         ]);
 });
 
+it('finishes alternating bracket blocks before starting the next block', function () {
+    $user = User::factory()->create();
+    $tournament = Tournament::create([
+        'code' => 'TIMED-FINISH-ALTERNATE-TOURNAMENT',
+        'name' => 'Timed Finish Alternate Cup',
+        'date' => '2026-10-15',
+        'venue' => 'Arena One',
+        'user_id' => $user->id,
+    ]);
+
+    $matchNumber = 1;
+    foreach (['A', 'B', 'C', 'D'] as $bracket) {
+        for ($bracketMatch = 1; $bracketMatch <= 2; $bracketMatch++) {
+            $teams = collect([1, 2])->map(fn (int $number): Teams => Teams::create([
+                'code' => "FINISH-ALTERNATE-TEAM-{$matchNumber}-{$number}",
+                'team_no' => str_pad((string) $number, 2, '0', STR_PAD_LEFT),
+                'team_name' => "Bracket {$bracket} Team {$bracketMatch}-{$number}",
+                'team_bracket' => $bracket,
+                'team_category' => 'Open',
+                'tournament_id' => $tournament->id,
+                'user_id' => $user->id,
+            ]));
+
+            Matches::create([
+                'code' => "FINISH-ALTERNATE-MATCH-{$matchNumber}",
+                'tournament_id' => $tournament->id,
+                'team_bracket' => $bracket,
+                'team_category' => 'Open',
+                'round_no' => '1',
+                'match_no' => (string) $bracketMatch,
+                'team1_id' => $teams[0]->id,
+                'team2_id' => $teams[1]->id,
+                'user_id' => $user->id,
+            ]);
+
+            $matchNumber++;
+        }
+    }
+
+    $this->actingAs($user)
+        ->put(route('tournament.courtSchedule.update', Crypt::encryptString($tournament->id)), [
+            'court_count' => 2,
+            'schedule_mode' => 'timed_finish_alternate_category',
+            'schedule_start_time' => '18:00',
+            'match_duration_minutes' => 12,
+        ])
+        ->assertRedirect();
+
+    expect(Matches::query()->where('tournament_id', $tournament->id)->orderBy('schedule_no')->orderBy('court_no')->get()
+        ->map(fn (Matches $match): array => [$match->team_bracket, $match->schedule_no, $match->court_no])->all())
+        ->toBe([
+            ['A', 1, 1],
+            ['B', 2, 1],
+            ['A', 3, 1],
+            ['B', 4, 1],
+            ['C', 5, 1],
+            ['D', 6, 1],
+            ['C', 7, 1],
+            ['D', 8, 1],
+        ]);
+});
+
 it('adds time ranges to the spread bracket and category modes', function () {
     $user = User::factory()->create();
 

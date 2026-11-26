@@ -89,6 +89,7 @@
                                 <option value="timed_category" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_category' ? 'selected' : '' }}>Timed per category</option>
                                 <option value="timed_alternate_category" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_alternate_category' ? 'selected' : '' }}>Timed alternate per category</option>
                                 <option value="timed_finish_category" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_finish_category' ? 'selected' : '' }}>Timed finish per category</option>
+                                <option value="timed_finish_alternate_category" {{ ($tournamentView->schedule_mode ?? 'bracket') === 'timed_finish_alternate_category' ? 'selected' : '' }}>Timed finish per category, alternate bracket blocks</option>
                             </select>
                         </div>
                         <div class="col-sm-4 col-md-3 timed-schedule-setting {{ str_starts_with((string) ($tournamentView->schedule_mode ?? ''), 'timed_') ? '' : 'd-none' }}">
@@ -107,7 +108,7 @@
                             </button>
                         </div>
                         <div class="col-12">
-                            <small class="text-muted">Timed alternate keeps categories on rotating courts. Timed finish completes every match in one bracket before starting the next bracket, then reuses the court for the next category.</small>
+                            <small class="text-muted">Timed alternate keeps categories on rotating courts. Timed finish completes every match in one bracket before starting the next bracket, then reuses the court for the next category. Alternate bracket blocks keep each category together and schedule A/B alternately before C/D.</small>
                         </div>
                     </form>
 

@@ -129,6 +129,7 @@ class TournamentController extends Controller
             'timed_category',
             'timed_alternate_category',
             'timed_finish_category',
+            'timed_finish_alternate_category',
             'timed_bracket',
             'timed_category_spread',
         ], true), 404);
@@ -266,9 +267,9 @@ class TournamentController extends Controller
 
         $validated = $request->validate([
             'court_count' => ['required', 'integer', 'min:1', 'max:100'],
-            'schedule_mode' => ['sometimes', 'string', 'in:bracket,category,timed_category,timed_alternate_category,timed_finish_category,timed_bracket,timed_category_spread'],
-            'schedule_start_time' => ['required_if:schedule_mode,timed_category', 'required_if:schedule_mode,timed_alternate_category', 'required_if:schedule_mode,timed_finish_category', 'required_if:schedule_mode,timed_bracket', 'required_if:schedule_mode,timed_category_spread', 'nullable', 'date_format:H:i'],
-            'match_duration_minutes' => ['required_if:schedule_mode,timed_category', 'required_if:schedule_mode,timed_alternate_category', 'required_if:schedule_mode,timed_finish_category', 'required_if:schedule_mode,timed_bracket', 'required_if:schedule_mode,timed_category_spread', 'nullable', 'integer', 'min:1', 'max:240'],
+            'schedule_mode' => ['sometimes', 'string', 'in:bracket,category,timed_category,timed_alternate_category,timed_finish_category,timed_finish_alternate_category,timed_bracket,timed_category_spread'],
+            'schedule_start_time' => ['required_if:schedule_mode,timed_category', 'required_if:schedule_mode,timed_alternate_category', 'required_if:schedule_mode,timed_finish_category', 'required_if:schedule_mode,timed_finish_alternate_category', 'required_if:schedule_mode,timed_bracket', 'required_if:schedule_mode,timed_category_spread', 'nullable', 'date_format:H:i'],
+            'match_duration_minutes' => ['required_if:schedule_mode,timed_category', 'required_if:schedule_mode,timed_alternate_category', 'required_if:schedule_mode,timed_finish_category', 'required_if:schedule_mode,timed_finish_alternate_category', 'required_if:schedule_mode,timed_bracket', 'required_if:schedule_mode,timed_category_spread', 'nullable', 'integer', 'min:1', 'max:240'],
         ]);
         $scheduleMode = $validated['schedule_mode'] ?? 'bracket';
 

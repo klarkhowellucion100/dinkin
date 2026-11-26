@@ -64,6 +64,12 @@ class CourtScheduleService
             return;
         }
 
+        if ($scheduleMode === 'timed_finish_alternate_category') {
+            $this->assignTimedFinishAlternateByCategory($matches, $courtCount);
+
+            return;
+        }
+
         if ($scheduleMode === 'timed_bracket') {
             $this->assignSpread($matches, $courtCount);
 
@@ -201,6 +207,58 @@ class CourtScheduleService
             }
 
             $courtAvailability[$courtNo] += $categoryMatches->count();
+        }
+    }
+
+    /**
+     * Finish bracket blocks in alternating court order within each category.
+     *
+     * @param  Collection<int, Matches>  $matches
+     */
+    private function assignTimedFinishAlternateByCategory(Collection $matches, int $courtCount): void
+    {
+        $courtAvailability = array_fill(1, $courtCount, 1);
+        $categories = $matches->pluck('team_category')->unique()->sort(function (string $first, string $second): int {
+            return ($this->categoryPriority($second) <=> $this->categoryPriority($first))
+                ?: strnatcasecmp($first, $second);
+        })->values();
+
+        foreach ($categories as $categoryIndex => $category) {
+            $courtNo = array_search(min($courtAvailability), $courtAvailability, true);
+            $scheduleNumber = $courtAvailability[$courtNo];
+            $categoryMatches = $matches->where('team_category', $category);
+            $brackets = $categoryMatches
+                ->pluck('team_bracket')
+                ->unique()
+                ->sort(fn (string $first, string $second): int => strnatcasecmp($first, $second))
+                ->values();
+            $orderedMatches = collect();
+
+            foreach ($brackets->chunk(2) as $bracketBlock) {
+                $matchesByBracket = $bracketBlock->mapWithKeys(fn (string $bracket): array => [
+                    $bracket => $this->sortMatches($categoryMatches->where('team_bracket', $bracket)),
+                ]);
+                $blockLength = $matchesByBracket->map->count()->max() ?? 0;
+
+                for ($matchIndex = 0; $matchIndex < $blockLength; $matchIndex++) {
+                    foreach ($bracketBlock as $bracket) {
+                        $match = $matchesByBracket[$bracket]->get($matchIndex);
+
+                        if ($match) {
+                            $orderedMatches->push($match);
+                        }
+                    }
+                }
+            }
+
+            foreach ($orderedMatches as $matchIndex => $match) {
+                $match->update([
+                    'schedule_no' => $scheduleNumber + $matchIndex,
+                    'court_no' => $courtNo,
+                ]);
+            }
+
+            $courtAvailability[$courtNo] += $orderedMatches->count();
         }
     }
 

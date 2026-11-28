@@ -157,6 +157,7 @@
                                                 @php
 
                                                     $teams = $bracketCategories[$category];
+                                                    $format = $formats->get($category . '|' . $bracket)?->format ?? 'round_robin';
 
                                                 @endphp
 
@@ -174,6 +175,29 @@
                                                                 </span>
                                                             </div>
                                                             <div>
+                                                                <form action="{{ route('tournament.format.update', Crypt::encryptString($tournamentView->id)) }}" method="POST" class="d-inline-flex align-items-center mr-2">
+                                                                    @csrf
+                                                                    <input type="hidden" name="team_category" value="{{ $category }}">
+                                                                    <input type="hidden" name="team_bracket" value="{{ $bracket }}">
+                                                                    <select name="format" class="form-control form-control-sm mr-1" aria-label="Tournament format">
+                                                                        <option value="round_robin" @selected($format === 'round_robin')>Pool play / Round robin</option>
+                                                                        <option value="single_elimination" @selected($format === 'single_elimination')>Single elimination</option>
+                                                                        <option value="double_elimination" @selected($format === 'double_elimination')>Double elimination</option>
+                                                                    </select>
+                                                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Save Format</button>
+                                                                </form>
+                                                                @if (in_array($format, ['single_elimination', 'double_elimination'], true))
+                                                                    <a href="{{ route('tournament.elimination.index', ['id' => Crypt::encryptString($tournamentView->id), 'team_category' => $category, 'team_bracket' => $bracket]) }}" class="btn btn-sm btn-dark mr-1">
+                                                                        View Elimination
+                                                                    </a>
+                                                                    <form action="{{ route('tournament.elimination.generate', Crypt::encryptString($tournamentView->id)) }}" method="POST" class="d-inline" onsubmit="return confirm('Generate this elimination bracket?');">
+                                                                        @csrf
+                                                                        <input type="hidden" name="team_category" value="{{ $category }}">
+                                                                        <input type="hidden" name="team_bracket" value="{{ $bracket }}">
+                                                                        <input type="hidden" name="format" value="{{ $format }}">
+                                                                        <button type="submit" class="btn btn-sm btn-primary mr-1">Generate Bracket</button>
+                                                                    </form>
+                                                                @endif
                                                                 <a href="{{ route('tournament.matches.view', [
                                                                     'tournament_id' => Crypt::encryptString($tournamentView->id),
                                                                     'team_bracket' => $bracket,

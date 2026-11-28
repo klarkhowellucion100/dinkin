@@ -1120,6 +1120,10 @@
                                     </th>
 
                                     <th class="text-center">
+                                        Tie status (H2H)
+                                    </th>
+
+                                    <th class="text-center">
                                         GP
                                     </th>
 
@@ -1929,6 +1933,10 @@
                                         ${standing.team_name}
                                     </div>
 
+                                </td>
+
+                                <td class="text-center">
+                                    ${standing.head_to_head ? `H2H ${standing.head_to_head.wins}–${standing.head_to_head.losses} (${standing.head_to_head.tied_team_count}-way)` : '—'}
                                 </td>
 
                                 <td class="text-center">

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Matches;
 use App\Models\Teams;
 use App\Models\Tournament;
+use App\Models\TournamentFormat;
 use App\Services\CourtScheduleService;
 use Carbon\Carbon;
 use Illuminate\Contracts\Encryption\DecryptException;
@@ -92,9 +93,15 @@ class TournamentController extends Controller
             'team_category',
         ]);
 
+        $formats = TournamentFormat::query()
+            ->where('tournament_id', $realId)
+            ->get()
+            ->keyBy(fn (TournamentFormat $format): string => $format->team_category.'|'.$format->team_bracket);
+
         return view('app.tournament.view', [
             'tournamentView' => $tournamentView,
             'teamsGrouped' => $teamsGrouped,
+            'formats' => $formats,
         ]);
     }
 

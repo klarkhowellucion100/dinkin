@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EliminationController;
 use App\Http\Controllers\MatchesController;
 use App\Http\Controllers\OpenPlaySessionController;
 use App\Http\Controllers\PlayoffMatchesController;
@@ -10,6 +11,7 @@ use App\Http\Controllers\PublicTournamentController;
 use App\Http\Controllers\RandomizerController;
 use App\Http\Controllers\TeamsController;
 use App\Http\Controllers\TournamentController;
+use App\Http\Controllers\TournamentFormatController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -64,6 +66,10 @@ Route::put('/tournament/{id}/court-schedule', [TournamentController::class, 'upd
 Route::get('/tournament/{id}', [TournamentController::class, 'edit'])->name('tournament.edit')->middleware('auth');
 Route::put('/tournament/{id}', [TournamentController::class, 'update'])->name('tournament.update')->middleware('auth');
 Route::delete('/tournament/{id}', [TournamentController::class, 'destroy'])->name('tournament.destroy')->middleware('auth');
+Route::post('/tournament/{id}/format', [TournamentFormatController::class, 'update'])->name('tournament.format.update')->middleware('auth');
+Route::post('/tournament/{id}/elimination/generate', [EliminationController::class, 'generate'])->name('tournament.elimination.generate')->middleware('auth');
+Route::get('/tournament/{id}/elimination/{team_category}/{team_bracket}', [EliminationController::class, 'index'])->name('tournament.elimination.index')->middleware('auth');
+Route::put('/elimination/{id}/score', [EliminationController::class, 'score'])->name('tournament.elimination.score')->middleware('auth');
 
 // Teams Registration
 Route::get('/teams/create/{tournament_id}', [TeamsController::class, 'create'])->name('teams.create')->middleware('auth');
@@ -156,6 +162,11 @@ Route::get(
     [PublicTournamentController::class, 'schedule']
 )
     ->name('public.tournaments.schedule');
+
+Route::get(
+    '/tournaments/{tournament_id}/elimination/{team_category}/{team_bracket}',
+    [PublicTournamentController::class, 'elimination']
+)->name('public.tournament.elimination');
 
 // Playoff Matches
 Route::get(

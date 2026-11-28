@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\EliminationMatch;
 use App\Models\Matches;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -9,6 +10,31 @@ use Illuminate\Support\Facades\DB;
 
 class PublicTournamentController extends Controller
 {
+    public function elimination(int $tournamentId, string $team_category, string $team_bracket)
+    {
+        $tournament = DB::table('tournaments')->where('id', $tournamentId)->first();
+        abort_if($tournament === null, 404);
+
+        $matches = EliminationMatch::query()
+            ->where('tournament_id', $tournamentId)
+            ->where('team_category', $team_category)
+            ->where('team_bracket', $team_bracket)
+            ->with(['team1', 'team2', 'winner'])
+            ->orderByRaw("CASE bracket_side WHEN 'winners' THEN 1 WHEN 'losers' THEN 2 ELSE 3 END")
+            ->orderBy('round_number')
+            ->orderBy('match_number')
+            ->get();
+
+        abort_if($matches->isEmpty(), 404);
+
+        return response()->view('app.tournament.public.elimination', compact(
+            'tournament',
+            'matches',
+            'team_category',
+            'team_bracket'
+        ))->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Public Tournament Landing Page
@@ -293,6 +319,56 @@ class PublicTournamentController extends Controller
 
                 return $standing;
             });
+
+        $tieGroups = $standings->groupBy(fn (array $standing): string => implode(':', [
+            $standing['wins'],
+            $standing['point_differential'],
+            $standing['points_against'],
+        ]));
+
+        $headToHeadByTeam = [];
+
+        foreach ($tieGroups as $tieGroup) {
+            if ($tieGroup->count() < 2) {
+                continue;
+            }
+
+            $tiedTeamIds = $tieGroup->pluck('team_id')->map(fn ($teamId): int => (int) $teamId)->all();
+
+            foreach ($tieGroup as $standing) {
+                $headToHeadWins = 0;
+                $headToHeadLosses = 0;
+
+                foreach ($matches as $match) {
+                    $team1Id = (int) $match->team1_id;
+                    $team2Id = (int) $match->team2_id;
+
+                    if (! in_array($team1Id, $tiedTeamIds, true)
+                        || ! in_array($team2Id, $tiedTeamIds, true)
+                        || ! in_array((int) $standing['team_id'], [$team1Id, $team2Id], true)) {
+                        continue;
+                    }
+
+                    if ((int) $match->winner_id === (int) $standing['team_id']) {
+                        $headToHeadWins++;
+                    } else {
+                        $headToHeadLosses++;
+                    }
+                }
+
+                $headToHeadByTeam[(int) $standing['team_id']] = [
+                    'wins' => $headToHeadWins,
+                    'losses' => $headToHeadLosses,
+                    'tied_team_count' => $tieGroup->count(),
+                ];
+            }
+        }
+
+        $standings = $standings->map(function (array $standing) use ($headToHeadByTeam): array {
+            $standing['head_to_head'] = $headToHeadByTeam[(int) $standing['team_id']] ?? null;
+
+            return $standing;
+        });
 
         /*
         |--------------------------------------------------------------------------
